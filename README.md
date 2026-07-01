@@ -193,15 +193,26 @@ forecast-based-anomaly-detection/
 - Google Colab
 
 ---
+## Business Impact
 
-## Future Enhancements
+Compared with static threshold monitoring, this approach:
 
-- Interactive Streamlit Dashboard
-- Customer-Level Forecasting
-- Product-Level Forecasting
-- LLM-powered Business Insights
-- Real-Time Sales Monitoring
-- Automated Email Alerts
+- Reduces false-positive alerts
+- Detects unusual sales behaviour relative to expected trends
+- Provides explainable root-cause analysis
+- Supports inventory planning and operational decision-making
+  
+---
+
+## Roadmap
+
+- ✅ Data Cleaning
+- ✅ Weekly Sales Forecasting
+- ✅ Forecast-Based Anomaly Detection
+- ✅ Root Cause Analysis
+- ⏳ Interactive Streamlit Dashboard
+- ⏳ LLM-powered Business Assistant
+- ⏳ Real-Time Alerting
 
 ---
 
