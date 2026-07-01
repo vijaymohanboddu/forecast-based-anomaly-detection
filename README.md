@@ -1,4 +1,12 @@
-# 📈 Forecast-Based Anomaly Detection for Retail Sales
+## Forecast-Based Anomaly Detection
+
+![Forecast](images/forecast_final.png)
+
+---
+
+## Weekly Sales Trend
+
+![Weekly Sales](images/weekly_sales.png)
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Prophet](https://img.shields.io/badge/Forecasting-Prophet-orange)
