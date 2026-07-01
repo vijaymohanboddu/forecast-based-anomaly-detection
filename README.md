@@ -1,4 +1,8 @@
-## Forecast-Based Anomaly Detection
+# 📈 Forecast-Based Anomaly Detection for Retail Sales
+
+### AI-Powered Weekly Sales Forecasting using Prophet
+An end-to-end machine learning solution that forecasts weekly retail sales, detects anomalies using prediction intervals, performs root cause analysis, and generates business-ready insights.
+
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Prophet](https://img.shields.io/badge/Forecasting-Prophet-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -76,7 +80,7 @@ Prediction Interval Analysis
 
 Dataset Link:
 
-https://www.kaggle.com/datasets/mashlyn/online-retail-ii-uci
+Dataset: [Online Retail II (Kaggle)](https://www.kaggle.com/datasets/mashlyn/online-retail-ii-uci)
 
 ---
 
@@ -139,6 +143,8 @@ Forecasts are generated for weekly aggregated sales.
 - 🚨 Detected **5 meaningful anomalies**
 - 📄 Generated automated business reports with root-cause analysis
 
+---
+
 ## Project Outputs
 
 The project generates:
@@ -163,9 +169,9 @@ forecast-based-anomaly-detection/
 │
 ├── images/
 │   ├── weekly_sales.png
-│   ├── prophet_forecast.png
-│   ├── prophet_components.png
-│   └── anomaly_detection.png
+│   ├── forecast1.png
+│   ├── forecast2.png
+│   └── forecast_final.png
 │
 ├── reports/
 │   ├── Anomaly_Report.xlsx
@@ -195,12 +201,13 @@ forecast-based-anomaly-detection/
 ---
 ## Business Impact
 
-Compared with static threshold monitoring, this approach:
+Compared with static threshold monitoring, this solution:
 
 - Reduces false-positive alerts
 - Detects unusual sales behaviour relative to expected trends
-- Provides explainable root-cause analysis
-- Supports inventory planning and operational decision-making
+- Provides explainable root-cause analysis for business users
+- Supports inventory planning and demand forecasting
+- Enables proactive operational decision-making
   
 ---
 
