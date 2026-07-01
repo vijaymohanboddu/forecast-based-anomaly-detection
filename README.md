@@ -129,6 +129,16 @@ Forecasts are generated for weekly aggregated sales.
 
 ---
 
+## Key Results
+
+- 📊 Analysed **1,067,371** retail transactions
+- 🧹 Cleaned dataset to **1,007,913** high-quality records
+- 📅 Aggregated sales into **106 weekly observations**
+- 🤖 Built a **Prophet forecasting model**
+- 🎯 Achieved **MAE = £27,549**
+- 🚨 Detected **5 meaningful anomalies**
+- 📄 Generated automated business reports with root-cause analysis
+
 ## Project Outputs
 
 The project generates:
