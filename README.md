@@ -1,5 +1,10 @@
 # 📈 Forecast-Based Anomaly Detection for Retail Sales
 
+![Python](https://img.shields.io/badge/Python-3.11-blue)
+![Prophet](https://img.shields.io/badge/Forecasting-Prophet-orange)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Status](https://img.shields.io/badge/Status-Completed-success)
+
 An end-to-end AI solution for forecasting weekly retail sales and detecting meaningful business anomalies using Facebook Prophet.
 
 This project demonstrates how predictive AI can replace static threshold-based monitoring with forecast-driven anomaly detection, reducing false positives while providing explainable business insights.
