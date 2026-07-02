@@ -1,12 +1,11 @@
 # 📈 Forecast-Based Anomaly Detection for Retail Sales
-
-### AI-Powered Weekly Sales Forecasting using Prophet
-An end-to-end machine learning solution that forecasts weekly retail sales, detects anomalies using prediction intervals, performs root cause analysis, and generates business-ready insights.
-
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Prophet](https://img.shields.io/badge/Forecasting-Prophet-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Status](https://img.shields.io/badge/Status-Completed-success)
+
+### AI-Powered Weekly Sales Forecasting using Prophet
+An end-to-end machine learning solution that forecasts weekly retail sales, detects anomalies using prediction intervals, performs root cause analysis, and generates business-ready insights.
 
 ![Forecast](images/forecast_final.png)
 
