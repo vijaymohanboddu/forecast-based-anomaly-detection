@@ -65,7 +65,7 @@ st.sidebar.image(
 
 st.sidebar.title("Retail AI")
 
-st.sidebar.caption("ISB Capstone Project")
+st.sidebar.caption("ISB ALP Project")
 
 page = st.sidebar.radio(
     "Navigation",
