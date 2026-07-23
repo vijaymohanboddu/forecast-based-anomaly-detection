@@ -1,9 +1,12 @@
 streamlit
+plotly
 pandas
 numpy
+prophet
 plotly
 google-generativeai
 scikit-learn
+google-genai
 prophet
 openpyxl
 matplotlib
