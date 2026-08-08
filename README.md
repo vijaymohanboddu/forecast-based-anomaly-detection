@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Prophet](https://img.shields.io/badge/Forecasting-Prophet-orange)
-![Gemini](https://img.shields.io/badge/GenAI-Gemini-purple)
+![GenAI](https://img.shields.io/badge/GenAI-Gemini-purple)
 ![Streamlit](https://img.shields.io/badge/App-Streamlit-red)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Status](https://img.shields.io/badge/Status-v2.0%20Released-success)
@@ -15,10 +15,10 @@ It combines:
 
 - **Prophet-based weekly sales forecasting**
 - **Forecast-interval anomaly detection**
+- **Dynamic anomaly sensitivity**
 - **Transaction-level root cause analysis**
 - **Generative AI executive interpretation using Gemini**
 - **Interactive Streamlit dashboards**
-- **Dynamic anomaly sensitivity**
 - **Executive-ready business recommendations**
 
 The objective is to move from:
@@ -27,11 +27,14 @@ The objective is to move from:
 
 rather than simply reporting that an anomaly occurred.
 
-![Forecast](images/forecast_final.png)
+### 🚀 Live Demo
+
+**iADAS:**  
+https://i-adas.streamlit.app/
 
 ---
 
-# 🚀 Version 2.0
+# Version 2.0
 
 Version 2.0 turns the original forecasting prototype into an interactive **AI decision-support application**.
 
@@ -51,12 +54,7 @@ Version 2.0 turns the original forecasting prototype into an interactive **AI de
 - ✅ Dark Mode and Light Mode
 - ✅ Responsive management-oriented UI
 - ✅ Cached Gemini responses to reduce repeated API calls
-- ✅ Deployed as a live Streamlit application
-
-### Live Application
-
-**iADAS:**  
-https://forecast-based-anomaly-detection.streamlit.app/
+- ✅ Live Streamlit deployment
 
 ---
 
@@ -72,15 +70,13 @@ Traditional anomaly detection systems commonly rely on fixed thresholds. These a
 - Holiday effects
 - Expected demand variability
 
-This project addresses the problem by forecasting expected sales and identifying events where actual sales move outside the expected prediction interval.
+iADAS addresses this by forecasting expected sales and identifying events where actual sales move outside the model's expected prediction interval.
 
 The system then goes one step further by explaining **why the anomaly may have occurred** and translating the evidence into **management actions**.
 
 ---
 
-# 💡 Solution
-
-iADAS follows an end-to-end analytical pipeline:
+# 💡 Solution Architecture
 
 ```text
 Raw Retail Transactions
@@ -101,7 +97,7 @@ Raw Retail Transactions
  Prediction Intervals
           │
           ▼
- Anomaly Detection
+  Anomaly Detection
           │
           ▼
  Transaction-level RCA
@@ -117,11 +113,11 @@ Raw Retail Transactions
 
 # 🧠 Application Architecture
 
-The application is organized into three primary workspaces.
+iADAS is organized into three primary workspaces.
 
 ### 1. Executive Pulse
 
-A management-oriented view of:
+Management-oriented view of:
 
 - Current forecast signal
 - Actual vs expected sales
@@ -135,9 +131,9 @@ The dashboard reflects the **active anomaly sensitivity** selected in Forecast S
 
 Used to explore the forecasting model and anomaly sensitivity.
 
-Users can adjust the prediction interval and refresh the anomaly register dynamically.
+Users can adjust the prediction interval and dynamically refresh the anomaly register.
 
-This allows management users to understand how anomaly detection changes as sensitivity changes.
+This allows users to see how the number and composition of detected anomalies changes as detection sensitivity changes.
 
 ### 3. Anomaly Intelligence
 
@@ -145,20 +141,22 @@ The root-cause workspace moves from:
 
 > **Signal → Explanation**
 
-For each detected anomaly, the application presents:
+For each detected anomaly, the application can present:
 
 - Actual sales
 - Forecast sales
-- Absolute variance
+- Variance
 - Percentage deviation
 - Leading product
 - Top customer
-- Top market/country
-- Primary transaction-derived driver
+- Top country / market
+- Transaction-derived driver
 - Contribution metrics
 - Week-over-week evidence
 - Gemini-generated management interpretation
 - Recommended actions
+
+Where evidence is insufficient, the system treats the explanation as a hypothesis rather than presenting it as fact.
 
 ---
 
@@ -168,7 +166,7 @@ For each detected anomaly, the application presents:
 
 - Source: Kaggle / UCI Machine Learning Repository
 - Period: December 2009 – December 2011
-- Original Transactions: **1,067,371**
+- Original transactions: **1,067,371**
 
 Dataset:
 
@@ -198,7 +196,7 @@ Final clean dataset:
 
 ### Model
 
-**Facebook Prophet**
+**Prophet**
 
 The model captures:
 
@@ -208,17 +206,24 @@ The model captures:
 
 Sales are aggregated into weekly observations before forecasting.
 
+### Forecast Dataset
+
+- Weekly observations: **106**
+- Average weekly sales: approximately **£193,172**
+- MAE: **£27,549**
+- RMSE: **£36,860**
+
 ---
 
 # 📐 Forecast-Based Anomaly Detection
 
-Instead of using a static threshold such as:
+Instead of using a static rule such as:
 
 ```text
 Actual Sales > Fixed Threshold
 ```
 
-iADAS evaluates the actual result against the model's expected prediction interval.
+iADAS evaluates actual sales against the model's expected prediction interval.
 
 Conceptually:
 
@@ -236,7 +241,14 @@ Conceptually:
              Lower Prediction Bound
 ```
 
-The application allows users to adjust the prediction interval sensitivity and dynamically regenerate the anomaly register.
+### Dynamic Sensitivity
+
+The original model used a **95% prediction interval**, producing the baseline set of **5 meaningful anomalies**:
+
+- 4 High Sales
+- 1 Low Sales
+
+In v2.0, the prediction-interval sensitivity is exposed in the application so users can explore a broader or narrower anomaly set interactively.
 
 ---
 
@@ -260,13 +272,11 @@ to:
 
 > **"Sales were unusual, and these transaction-level factors appear to explain the deviation."**
 
-Where evidence is insufficient, the system treats the explanation as a hypothesis rather than presenting it as a fact.
-
 ---
 
 # 🤖 Generative AI — Gemini
 
-iADAS uses **Google Gemini** to transform the anomaly and RCA evidence into a concise management brief.
+iADAS uses **Google Gemini** to transform anomaly and RCA evidence into a concise management brief.
 
 The AI output is structured into:
 
@@ -280,12 +290,7 @@ Evidence-based interpretation of the event.
 
 ### Business Risks
 
-Potential:
-
-- Inventory risk
-- Customer impact
-- Revenue impact
-- Operational risk
+Potential inventory, customer, revenue and operational risks.
 
 ### Recommended Actions
 
@@ -295,7 +300,7 @@ Potential:
 
 One concise senior-leadership takeaway.
 
-The prompt explicitly instructs the model to use only supplied evidence and distinguish observed facts from hypotheses.
+The prompt instructs the model to use only supplied evidence, avoid unsupported figures, and distinguish observed facts from hypotheses.
 
 Gemini responses are cached to reduce repeated API calls for the same anomaly.
 
@@ -309,10 +314,12 @@ Gemini responses are cached to reduce repeated API calls for the same anomaly.
 | Clean Transactions | 1,007,913 |
 | Weekly Observations | 106 |
 | Forecast Model | Prophet |
+| Average Weekly Sales | £193,172 |
 | MAE | £27,549 |
 | RMSE | £36,860 |
+| Baseline Anomalies at 95% | 5 |
 
-The number of detected anomalies is **dynamic in v2.0** and depends on the active prediction-interval sensitivity.
+**Important:** the anomaly count is dynamic in v2.0 and depends on the active prediction-interval sensitivity.
 
 ---
 
@@ -324,6 +331,7 @@ The number of detected anomalies is **dynamic in v2.0** and depends on the activ
 - 🤖 Built a **Prophet forecasting model**
 - 🎯 Achieved **MAE = £27,549**
 - 📉 Detects anomalies using forecast prediction intervals
+- 🎚️ Allows users to dynamically adjust anomaly sensitivity
 - 🔎 Performs transaction-derived root cause analysis
 - 🧠 Generates AI-powered management interpretation
 - 💼 Converts analytical signals into recommended business actions
@@ -331,34 +339,19 @@ The number of detected anomalies is **dynamic in v2.0** and depends on the activ
 
 ---
 
-# 🖥️ Application Screens
+# 🖥️ Application
 
-## Executive Pulse
+### Executive Pulse
 
 Management overview of the current forecast and anomaly landscape.
 
-## Forecast Studio
+### Forecast Studio
 
-Interactive forecast exploration with adjustable anomaly sensitivity.
+Interactive forecast exploration with adjustable anomaly sensitivity and anomaly visualization.
 
-## Anomaly Intelligence
+### Anomaly Intelligence
 
 Detailed anomaly investigation with financial impact, RCA evidence and Gemini-generated management response.
-
----
-
-# 🗂️ Project Outputs
-
-The project includes:
-
-- Weekly Sales Forecast
-- Forecast vs Actual Comparison
-- Forecast-Based Anomaly Detection
-- Root Cause Analysis
-- Executive Business Reports
-- Executive Summary Dashboard
-- Interactive Streamlit Application
-- Gemini-powered Management Analysis
 
 ---
 
@@ -386,6 +379,7 @@ forecast-based-anomaly-detection/
 │
 ├── app.py
 ├── llm.py
+├── dashboard_data.pkl
 ├── weekly_rca.pkl
 ├── requirements.txt
 ├── README.md
@@ -420,7 +414,7 @@ Example:
 GEMINI_API_KEY = "your-api-key"
 ```
 
-The key should **never be committed to GitHub**.
+**Never commit the actual API key to GitHub.**
 
 ---
 
@@ -439,6 +433,8 @@ Then run:
 ```bash
 streamlit run app.py
 ```
+
+Open the local Streamlit URL shown in the terminal.
 
 ---
 
