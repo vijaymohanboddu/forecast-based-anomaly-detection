@@ -14,7 +14,7 @@ from llm import generate_insights
 # ---------------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="SignalCast AI | Retail forecast intelligence",
+    page_title="iADAS | Intelligent Anomaly Detection and Alerting System",
     page_icon=":material/monitoring:",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -446,6 +446,32 @@ st.html(
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
     }
 
+    .anomaly-split {
+        display: flex;
+        gap: .7rem;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: .65rem;
+        font-size: .82rem;
+        font-weight: 650;
+    }
+
+    .anomaly-positive {
+        color: #91D3B0;
+        background: rgba(145, 211, 176, .08);
+        border: 1px solid rgba(145, 211, 176, .16);
+        padding: .28rem .55rem;
+        border-radius: 999px;
+    }
+
+    .anomaly-negative {
+        color: #F0A0A0;
+        background: rgba(240, 160, 160, .08);
+        border: 1px solid rgba(240, 160, 160, .16);
+        padding: .28rem .55rem;
+        border-radius: 999px;
+    }
+
     @keyframes viewport-reveal {
         from {
             opacity: .08;
@@ -616,6 +642,24 @@ rmse = float(data["rmse"])
 results["ds"] = pd.to_datetime(results["ds"])
 anomalies["ds"] = pd.to_datetime(anomalies["ds"])
 
+
+@st.cache_data(show_spinner=False)
+def load_weekly_rca():
+    """Load transaction-derived RCA lookup tables built in Colab."""
+    rca_path = APP_ROOT / "weekly_rca.pkl"
+    if not rca_path.exists():
+        return None
+    with open(rca_path, "rb") as file:
+        rca = pickle.load(file)
+    for key in ("product_rca", "customer_rca", "country_rca"):
+        rca[key] = rca[key].copy()
+        rca[key]["Week"] = pd.to_datetime(rca[key]["Week"]).dt.normalize()
+    return rca
+
+
+weekly_rca = load_weekly_rca()
+
+
 total_sales_all = float(results["y"].sum())
 forecast_sales_all = float(results["yhat"].sum())
 accuracy_all = (
@@ -689,6 +733,165 @@ def generate_dynamic_forecast(base_results: pd.DataFrame, confidence_level: floa
     return dynamic_results, dynamic_anomalies
 
 
+def get_dynamic_rca(week):
+    """Return transaction-derived RCA for any detected anomaly week."""
+    if weekly_rca is None:
+        return None
+
+    week = pd.Timestamp(week).normalize()
+    product_rca = weekly_rca["product_rca"]
+    customer_rca = weekly_rca["customer_rca"]
+    country_rca = weekly_rca["country_rca"]
+
+    result = {
+        "week": week,
+        "previous_week": None,
+        "product": None,
+        "customer": None,
+        "country": None,
+    }
+
+    # Find the immediately preceding RCA week that exists in the data.
+    all_weeks = sorted(
+        set(product_rca["Week"])
+        | set(customer_rca["Week"])
+        | set(country_rca["Week"])
+    )
+    previous_weeks = [w for w in all_weeks if w < week]
+    previous_week = previous_weeks[-1] if previous_weeks else None
+    result["previous_week"] = previous_week
+
+    def top_record(frame, name_col, previous_frame=None):
+        current = frame[frame["Week"] == week].copy()
+        if current.empty:
+            return None
+        current = current.sort_values("TotalSales", ascending=False)
+        top = current.iloc[0]
+        total = float(current["TotalSales"].sum())
+        current_sales = float(top["TotalSales"])
+
+        previous_sales = 0.0
+        if previous_frame is not None and previous_week is not None:
+            previous = previous_frame[previous_frame["Week"] == previous_week]
+            if not previous.empty:
+                match = previous[previous[name_col] == top[name_col]]
+                if not match.empty:
+                    previous_sales = float(match.iloc[0]["TotalSales"])
+
+        change_pct = None
+        if previous_sales > 0:
+            change_pct = (current_sales - previous_sales) / previous_sales * 100
+
+        return {
+            "name": str(top[name_col]).strip(),
+            "sales": current_sales,
+            "contribution_pct": (current_sales / total * 100) if total > 0 else 0.0,
+            "previous_week_sales": previous_sales,
+            "week_over_week_change_pct": change_pct,
+        }
+
+    product = top_record(product_rca, "Description", product_rca)
+    customer = top_record(customer_rca, "Customer ID", customer_rca)
+    country = top_record(country_rca, "Country", country_rca)
+
+    if customer is not None:
+        customer["name"] = customer["name"]
+        customer["id"] = customer["name"]
+        customer.pop("name", None)
+
+    result["product"] = product
+    result["customer"] = customer
+    result["country"] = country
+    return result
+
+
+def build_dynamic_anomaly_report(anomaly_row):
+    """Combine dynamic forecast output with transaction-level RCA."""
+    week = pd.Timestamp(anomaly_row["ds"]).normalize()
+    rca = get_dynamic_rca(week)
+
+    if rca is None:
+        return pd.Series({
+            "Week": week,
+            "Type": anomaly_row["AnomalyType"],
+            "Actual Sales": float(anomaly_row["y"]),
+            "Forecast Sales": float(anomaly_row["yhat"]),
+            "Deviation %": ((float(anomaly_row["y"]) - float(anomaly_row["yhat"])) / float(anomaly_row["yhat"]) * 100) if float(anomaly_row["yhat"]) else 0.0,
+            "Top Product": "RCA unavailable",
+            "Top Customer": "RCA unavailable",
+            "Top Country": "RCA unavailable",
+            "Root Cause Driver": "RCA unavailable",
+            "Driver Increase": 0.0,
+            "Driver Change %": 0.0,
+            "Product Contribution %": 0.0,
+            "Customer Contribution %": 0.0,
+            "Country Contribution %": 0.0,
+        })
+
+    product = rca["product"]
+    customer = rca["customer"]
+    country = rca["country"]
+
+    drivers = []
+    for label, item in (("Product", product), ("Customer", customer), ("Country", country)):
+        if item and item.get("week_over_week_change_pct") is not None:
+            amount_change = float(item["sales"]) - float(item.get("previous_week_sales", 0.0))
+            drivers.append((
+                label,
+                abs(item["week_over_week_change_pct"]),
+                item["week_over_week_change_pct"],
+                amount_change,
+            ))
+
+    driver = max(drivers, key=lambda x: x[1]) if drivers else None
+    driver_name = driver[0] if driver else "Transaction concentration"
+    driver_change_pct = driver[2] if driver else 0.0
+    driver_change_amount = driver[3] if driver else 0.0
+
+    actual = float(anomaly_row["y"])
+    forecast = float(anomaly_row["yhat"])
+    deviation = ((actual - forecast) / forecast * 100) if forecast else 0.0
+
+    anomaly_type = anomaly_row["AnomalyType"]
+    recommendation = (
+        "Review inventory levels, validate whether the increase is seasonal or a bulk customer order, and prepare replenishment if demand is expected to continue."
+        if anomaly_type == "High Sales"
+        else "Investigate inventory availability, operational issues, pricing, promotions, or changes in customer demand."
+    )
+
+    return pd.Series({
+        "Week": week,
+        "Type": anomaly_type,
+        "Actual Sales": actual,
+        "Forecast Sales": forecast,
+        "Deviation %": deviation,
+        "Top Product": product["name"] if product else "RCA unavailable",
+        "Top Customer": customer["id"] if customer else "RCA unavailable",
+        "Top Country": country["name"] if country else "RCA unavailable",
+        "Root Cause Driver": driver_name,
+        "Driver Increase": driver_change_amount,
+        "Driver Change %": driver_change_pct,
+        "Product Contribution %": product["contribution_pct"] if product else 0.0,
+        "Customer Contribution %": customer["contribution_pct"] if customer else 0.0,
+        "Country Contribution %": country["contribution_pct"] if country else 0.0,
+        "Recommendation": recommendation,
+    })
+
+
+@st.cache_data(show_spinner=False)
+def dynamic_reports_from_anomalies(dynamic_anomalies):
+    """Build the anomaly register directly from the current sensitivity setting."""
+    if dynamic_anomalies.empty:
+        return pd.DataFrame(columns=[
+            "Week", "Type", "Actual Sales", "Forecast Sales", "Deviation %",
+            "Top Product", "Top Customer", "Top Country", "Root Cause Driver",
+            "Driver Increase", "Driver Change %", "Product Contribution %",
+            "Customer Contribution %", "Country Contribution %"
+        ])
+    reports = [build_dynamic_anomaly_report(row) for _, row in dynamic_anomalies.iterrows()]
+    return pd.DataFrame(reports).sort_values("Week").reset_index(drop=True)
+
+
 def resolve_window(option: str):
     end = results["ds"].max()
     if option == "Last 26 weeks":
@@ -696,6 +899,20 @@ def resolve_window(option: str):
     if option == "Last 52 weeks":
         return end - pd.Timedelta(weeks=52), end
     return results["ds"].min(), end
+
+
+# Persistent sensitivity state shared across all workspaces.
+# IMPORTANT: do NOT use the slider widget key for this value because Streamlit
+# removes widget state when that widget is not rendered on another page.
+if "active_confidence_pct" not in st.session_state:
+    st.session_state["active_confidence_pct"] = 95
+
+def persist_confidence():
+    st.session_state["active_confidence_pct"] = int(
+        st.session_state["confidence_slider"]
+    )
+
+active_confidence_pct = int(st.session_state["active_confidence_pct"])
 
 
 @st.dialog(
@@ -988,12 +1205,12 @@ with st.container(key="top_navigation"):
         st.html(
             """
             <div class="brand-lockup">
-                <div class="brand-mark" aria-label="SignalCast waveform">
+                <div class="brand-mark" aria-label="iADAS waveform">
                     <span class="brand-wave" aria-hidden="true">∿</span>
                 </div>
                 <div>
-                    <div class="brand-name">SignalCast <span>AI</span></div>
-                    <div class="brand-sub">Forecast intelligence</div>
+                    <div class="brand-name">iADAS</div>
+                    <div class="brand-sub">Intelligent Anomaly Detection &amp; Alerting System</div>
                 </div>
             </div>
             """
@@ -1016,7 +1233,7 @@ with st.container(key="top_navigation"):
                 f"""
                 <div class="live-status" title="Latest model observation">
                     <span class="live-status-dot"></span>
-                    Monitoring · {results["ds"].max():%d %b}
+                    Monitoring · {datetime.now():%d %b %Y}
                 </div>
                 """
             )
@@ -1029,176 +1246,82 @@ st.space("medium")
 # ---------------------------------------------------------------------------
 
 if page == "Executive pulse":
+    # Always use the same sensitivity selected in Forecast Studio.
+    executive_confidence_pct = int(st.session_state["active_confidence_pct"])
+    executive_results, executive_anomalies = generate_dynamic_forecast(
+        results,
+        executive_confidence_pct / 100.0,
+    )
+
+    exec_high = int((executive_anomalies["AnomalyType"] == "High Sales").sum())
+    exec_low = int((executive_anomalies["AnomalyType"] == "Low Sales").sum())
+    exec_accuracy = (
+        100
+        - abs(executive_results["y"] - executive_results["yhat"]).mean()
+        / executive_results["y"].mean()
+        * 100
+    )
+
     page_header(
-        "Executive intelligence",
-        "Turn demand signals into decisive action.",
-        "A forecast-led command center that separates meaningful retail exceptions from ordinary weekly noise.",
-        f"Generated {datetime.now():%d %b %Y} · Prophet model · 95% prediction interval",
+        "Executive pulse",
+        "See the signal. Understand the exception.",
+        "A compact view of the forecast and the exceptions worth investigating.",
+        f"{len(executive_anomalies)} anomalies · {executive_confidence_pct}% prediction interval · Updated {datetime.now():%d %b %Y}",
     )
 
     with st.container(border=True, key="hero_panel"):
-        hero_left, hero_right = st.columns([2.1, 1], vertical_alignment="center")
+        hero_left, hero_right = st.columns([2.2, 1], vertical_alignment="center")
         with hero_left:
-            st.subheader(
-                f"{len(anomalies)} meaningful events found across "
-                f"{len(results)} weeks of retail activity"
-            )
-            st.write(
-                "SignalCast learns the expected demand curve, evaluates every "
-                "week against the model’s prediction interval, and elevates only "
-                "the exceptions that merit investigation."
-            )
+            st.subheader(f"{len(executive_anomalies)} anomalies across {len(executive_results)} weeks")
+            st.caption("The forecast defines expected demand; exceptions outside the selected interval become signals.")
             st.markdown(
-                f":violet-badge[{high_count} demand spikes] "
-                f":orange-badge[{low_count} demand drops] "
-                f":green-badge[{accuracy_all:.1f}% forecast accuracy]"
+                f'<div class="anomaly-split"><span class="anomaly-positive">+{exec_high} above forecast</span>'
+                f'<span class="anomaly-negative">-{exec_low} below forecast</span></div>',
+                unsafe_allow_html=True,
             )
         with hero_right:
-            st.metric(
-                "Largest observed deviation",
-                f"{largest['Deviation %']:+.1f}%",
-                f"{largest['Week']} · {largest['Type']}",
-                delta_color="violet",
-                delta_arrow="off",
-                border=True,
-                chart_data=abs(results["y"] - results["yhat"]).tail(18).tolist(),
-                chart_type="area",
-            )
+            if not executive_anomalies.empty:
+                largest_exec = executive_anomalies.loc[
+                    executive_anomalies["y"].sub(executive_anomalies["yhat"]).abs().idxmax()
+                ]
+                deviation = (
+                    (largest_exec["y"] - largest_exec["yhat"]) / largest_exec["yhat"] * 100
+                    if largest_exec["yhat"] else 0
+                )
+                st.metric(
+                    "Largest deviation",
+                    f"{deviation:+.1f}%",
+                    f"{largest_exec['ds']:%d %b %Y}",
+                    delta_color="normal",
+                    delta_arrow="off",
+                    border=True,
+                )
+            else:
+                st.metric("Largest deviation", "—", "No anomaly detected", border=True)
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Anomalies", len(executive_anomalies), f"{exec_high} above · {exec_low} below", delta_color="off", border=True)
+    k2.metric("Forecast accuracy", f"{exec_accuracy:.1f}%", border=True)
+    k3.metric("Analysis window", f"{len(executive_results)} weeks", f"{executive_confidence_pct}% interval", border=True)
 
     section_header(
-        "Portfolio pulse",
-        "Performance across the complete model window.",
-        ":material/monitoring:",
-    )
-    metric_columns = st.columns(4)
-    interactive_metric_tile(
-        metric_columns[0],
-        tile_key="pulse_actual",
-        metric_key="actual",
-        label="Actual sales",
-        value=f"£{total_sales_all / 1_000_000:.2f}M",
-        delta="Observed retail value",
-        frame=results,
-        signal_frame=anomalies,
-        chart_data=results["y"].tail(18).tolist(),
-        chart_type="line",
-        delta_color="off",
-        delta_arrow="off",
-    )
-    interactive_metric_tile(
-        metric_columns[1],
-        tile_key="pulse_forecast",
-        metric_key="forecast",
-        label="AI forecast",
-        value=f"£{forecast_sales_all / 1_000_000:.2f}M",
-        delta=f"£{total_sales_all - forecast_sales_all:+,.0f} variance",
-        frame=results,
-        signal_frame=anomalies,
-        chart_data=results["yhat"].tail(18).tolist(),
-        chart_type="line",
-        delta_color="violet",
-    )
-    interactive_metric_tile(
-        metric_columns[2],
-        tile_key="pulse_accuracy",
-        metric_key="accuracy",
-        label="Forecast accuracy",
-        value=f"{accuracy_all:.1f}%",
-        delta="Stable model performance",
-        frame=results,
-        signal_frame=anomalies,
-        chart_data=(
-            100
-            - abs(results["y"] - results["yhat"])
-            / results["y"].replace(0, pd.NA)
-            * 100
-        ).fillna(0).tail(18).tolist(),
-        chart_type="area",
-        delta_color="green",
-        delta_arrow="off",
-    )
-    interactive_metric_tile(
-        metric_columns[3],
-        tile_key="pulse_anomalies",
-        metric_key="anomalies",
-        label="Signals detected",
-        value=len(anomalies),
-        delta=f"{high_count} high · {low_count} low",
-        frame=results,
-        signal_frame=anomalies,
-        chart_data=[high_count, low_count],
-        chart_type="bar",
-        delta_color="orange",
-        delta_arrow="off",
+        "Demand signal",
+        "Actual sales versus the AI expectation.",
+        ":material/show_chart:",
     )
 
-    section_header(
-        "Intelligence pipeline",
-        "Seven automated stages convert transaction noise into an executive-ready decision signal.",
-        ":material/account_tree:",
-    )
-    pipeline_steps = [
-        ("01", "Retail transactions", "1.07M raw records", "database"),
-        ("02", "Quality controls", "Cleaned and validated", "verified"),
-        ("03", "Weekly aggregation", f"{len(results)} periods", "calendar_view_week"),
-        ("04", "Prophet forecast", "Seasonality aware", "model_training"),
-        ("05", "Interval analysis", "95% confidence", "analytics"),
-        ("06", "Root-cause scan", "Driver attributed", "manage_search"),
-        ("07", "Decision support", "Action generated", "lightbulb"),
-    ]
-    first_row = st.columns(4)
-    second_row = st.columns(3)
-    for column, (index, name, state, icon) in zip(
-        first_row + second_row, pipeline_steps
-    ):
-        with column:
-            with st.container(
-                border=True,
-                height=150,
-                key=f"pipeline_stage_{index}",
-            ):
-                st.badge(index, color="violet")
-                st.markdown(f":material/{icon}: **{name}**")
-                st.caption(state)
-
-    section_header(
-        "Business value",
-        "How forecast-based monitoring changes the operating rhythm.",
-        ":material/rocket_launch:",
-    )
-    value_columns = st.columns(4)
-    value_items = [
-        (
-            "trending_up",
-            "Anticipate demand",
-            "See unusual movement against an adaptive forecast instead of a rigid threshold.",
-        ),
-        (
-            "notifications_active",
-            "Reduce alert noise",
-            "Focus investigation on statistically meaningful exceptions with business impact.",
-        ),
-        (
-            "hub",
-            "Explain the cause",
-            "Connect every event to its strongest product, customer, market, and driver.",
-        ),
-        (
-            "bolt",
-            "Accelerate action",
-            "Translate model output into clear inventory and revenue decisions.",
-        ),
-    ]
-    for column, (icon, title, copy) in zip(value_columns, value_items):
-        with column:
-            with st.container(
-                border=True,
-                height=175,
-                key=f"value_card_{icon}",
-            ):
-                st.markdown(f":material/{icon}: **{title}**")
-                st.caption(copy)
-
+    chart_data = executive_results.rename(columns={"y": "Actual sales", "yhat": "AI forecast"})
+    with st.container(border=True, key="executive_chart"):
+        st.line_chart(
+            chart_data,
+            x="ds",
+            y=["Actual sales", "AI forecast"],
+            x_label="Week",
+            y_label="Weekly sales (£)",
+            color=[CYAN, VIOLET],
+            height=430,
+            width="stretch",
+        )
 
 # ---------------------------------------------------------------------------
 # FORECAST STUDIO
@@ -1216,14 +1339,19 @@ elif page == "Forecast studio":
         "Anomaly Detection Sensitivity",
         min_value=80,
         max_value=99,
-        value=95,
+        value=int(st.session_state["active_confidence_pct"]),
         step=1,
         format="%d%%",
+        key="confidence_slider",
+        on_change=persist_confidence,
         help=(
             "Lower confidence creates a narrower prediction interval and can "
             "surface more anomalies. Higher confidence is more conservative."
         ),
     )
+
+    # Keep the persistent value synchronized even on the initial render.
+    st.session_state["active_confidence_pct"] = int(confidence_pct)
     confidence_level = confidence_pct / 100.0
     st.caption(
         f"Prediction interval: {confidence_pct}% · "
@@ -1304,261 +1432,82 @@ elif page == "Forecast studio":
         * 100
     )
 
+    high_filtered = int(
+        (filtered_anomalies["AnomalyType"] == "High Sales").sum()
+    )
+    low_filtered = int(
+        (filtered_anomalies["AnomalyType"] == "Low Sales").sum()
+    )
+
+    # Compact KPI row — no drill-down dialogs or duplicate diagnostics.
     metric_columns = st.columns(4)
-    interactive_metric_tile(
-        metric_columns[0],
-        tile_key="studio_actual",
-        metric_key="actual",
-        label="Actual sales",
-        value=f"£{total_sales / 1_000_000:.2f}M",
-        delta=f"{len(filtered)} weekly observations",
-        frame=filtered,
-        signal_frame=filtered_anomalies,
-        chart_data=filtered["y"].tolist(),
-        chart_type="line",
-        delta_color="off",
-        delta_arrow="off",
+
+    metric_columns[0].metric(
+        "Actual sales",
+        f"£{total_sales / 1_000_000:.2f}M",
+        f"{len(filtered)} weeks",
+        border=True,
     )
-    interactive_metric_tile(
-        metric_columns[1],
-        tile_key="studio_forecast",
-        metric_key="forecast",
-        label="AI forecast",
-        value=f"£{forecast_sales / 1_000_000:.2f}M",
-        delta=f"£{variance:+,.0f} total variance",
-        frame=filtered,
-        signal_frame=filtered_anomalies,
-        chart_data=filtered["yhat"].tolist(),
-        chart_type="line",
-        delta_color="violet",
+
+    metric_columns[1].metric(
+        "AI forecast",
+        f"£{forecast_sales / 1_000_000:.2f}M",
+        f"£{variance:+,.0f} variance",
+        border=True,
     )
-    interactive_metric_tile(
-        metric_columns[2],
-        tile_key="studio_accuracy",
-        metric_key="accuracy",
-        label="Forecast accuracy",
-        value=f"{accuracy:.1f}%",
-        delta="Mean absolute fit",
-        frame=filtered,
-        signal_frame=filtered_anomalies,
-        chart_data=(
-            100
-            - abs(filtered["y"] - filtered["yhat"])
-            / filtered["y"].replace(0, pd.NA)
-            * 100
-        ).fillna(0).tolist(),
-        chart_type="area",
-        delta_color="green",
-        delta_arrow="off",
+
+    metric_columns[2].metric(
+        "Forecast accuracy",
+        f"{accuracy:.1f}%",
+        border=True,
     )
-    interactive_metric_tile(
-        metric_columns[3],
-        tile_key="studio_anomalies",
-        metric_key="anomalies",
-        label="Anomaly signals",
-        value=len(filtered_anomalies),
-        delta=(
-            f"{(filtered_anomalies['AnomalyType'] == 'High Sales').sum()} high · "
-            f"{(filtered_anomalies['AnomalyType'] == 'Low Sales').sum()} low"
-        ),
-        frame=filtered,
-        signal_frame=filtered_anomalies,
-        chart_data=[
-            int((filtered_anomalies["AnomalyType"] == "High Sales").sum()),
-            int((filtered_anomalies["AnomalyType"] == "Low Sales").sum()),
-        ],
-        chart_type="bar",
-        delta_color="orange",
-        delta_arrow="off",
-    )
+
+    with metric_columns[3]:
+        st.metric(
+            "Anomalies",
+            len(filtered_anomalies),
+            border=True,
+        )
+        st.markdown(
+            f'<div class="anomaly-split"><span class="anomaly-positive">+{high_filtered} above</span>'
+            f'<span class="anomaly-negative">-{low_filtered} below</span></div>',
+            unsafe_allow_html=True,
+        )
 
     section_header(
-        "Forecast trajectory" if chart_view == "Trajectory" else "Forecast variance",
-        (
-            "Actual sales, AI forecast, confidence envelope, and detected exceptions."
-            if chart_view == "Trajectory"
-            else "Weekly distance above or below the AI forecast baseline."
-        ),
+        "Forecast trajectory",
+        "Actual sales, AI forecast, confidence envelope, and detected exceptions.",
         ":material/show_chart:",
     )
+
     with st.container(border=True, key="forecast_chart_panel"):
-        if chart_view == "Trajectory":
-            st.markdown(
-                ":green-badge[Actual sales] "
-                ":violet-badge[AI forecast] "
-                + (
-                    f":gray-badge[{confidence_pct}% confidence boundaries]"
-                    if show_confidence
-                    else ""
-                )
-            )
-            trajectory_data = filtered.rename(
-                columns={
-                    "y": "Actual sales",
-                    "yhat": "AI forecast",
-                    "yhat_lower": "Lower confidence",
-                    "yhat_upper": "Upper confidence",
-                }
-            )
-            trajectory_series = ["Actual sales", "AI forecast"]
-            trajectory_colors = [CYAN, VIOLET]
-            if show_confidence:
-                trajectory_series.extend(
-                    ["Lower confidence", "Upper confidence"]
-                )
-                trajectory_colors.extend(["#64748B66", "#64748B66"])
+        trajectory_data = filtered.rename(
+            columns={
+                "y": "Actual sales",
+                "yhat": "AI forecast",
+                "yhat_lower": "Lower confidence",
+                "yhat_upper": "Upper confidence",
+            }
+        )
 
-            st.line_chart(
-                trajectory_data,
-                x="ds",
-                y=trajectory_series,
-                x_label="Week",
-                y_label="Weekly sales (£)",
-                color=trajectory_colors,
-                height=510,
-                width="stretch",
-            )
-        else:
-            st.markdown(
-                ":green-badge[Above forecast] "
-                ":red-badge[Below forecast]"
-            )
-            variance_data = filtered[["ds", "y", "yhat"]].copy()
-            variance_data["Variance"] = (
-                variance_data["y"] - variance_data["yhat"]
-            )
-            variance_data["Direction"] = variance_data["Variance"].apply(
-                lambda value: (
-                    "Above forecast"
-                    if value >= 0
-                    else "Below forecast"
-                )
-            )
-            st.bar_chart(
-                variance_data,
-                x="ds",
-                y="Variance",
-                x_label="Week",
-                y_label="Variance to forecast (£)",
-                color="Direction",
-                height=510,
-                width="stretch",
-            )
+        series = ["Actual sales", "AI forecast", "Lower confidence", "Upper confidence"]
 
-        with st.container(border=True, key="chart_controls_dock"):
-            view_column, layer_column = st.columns(
-                [1, 1.45],
-                vertical_alignment="bottom",
-            )
-            with view_column:
-                st.segmented_control(
-                    "Chart view",
-                    ["Trajectory", "Variance"],
-                    default="Trajectory",
-                    required=True,
-                    width="stretch",
-                    key="forecast_chart_view",
-                )
-            with layer_column:
-                st.pills(
-                    "Chart layers",
-                    default_layers,
-                    selection_mode="multi",
-                    default=default_layers,
-                    disabled=chart_view == "Variance",
-                    key="forecast_layers",
-                    width="stretch",
-                    help="Show or hide analytical layers on the trajectory.",
-                )
+        st.line_chart(
+            trajectory_data,
+            x="ds",
+            y=series,
+            x_label="Week",
+            y_label="Weekly sales (£)",
+            color=[CYAN, VIOLET, "#64748B66", "#64748B66"],
+            height=480,
+            width="stretch",
+        )
 
-        if (
-            chart_view == "Trajectory"
-            and show_anomalies
-            and not filtered_anomalies.empty
-        ):
-            st.caption("Detected events in this analysis window")
-            event_table = filtered_anomalies[
-                ["ds", "AnomalyType", "y"]
-            ].rename(
-                columns={
-                    "ds": "Week",
-                    "AnomalyType": "Signal",
-                    "y": "Actual sales",
-                }
-            )
-            st.dataframe(
-                event_table,
-                hide_index=True,
-                width="stretch",
-                height="content",
-                column_config={
-                    "Week": st.column_config.DateColumn(
-                        "Week",
-                        format="DD MMM YYYY",
-                    ),
-                    "Signal": st.column_config.TextColumn("Signal"),
-                    "Actual sales": st.column_config.NumberColumn(
-                        "Actual sales (£)",
-                        format="localized",
-                    ),
-                },
-            )
-
-    diagnostic_tabs = st.tabs(
-        [
-            ":material/health_metrics: Model diagnostics",
-            ":material/priority_high: Priority signal",
-            ":material/auto_awesome: AI decision brief",
-        ]
-    )
-    with diagnostic_tabs[0]:
-        diagnostic_columns = st.columns(3)
-        diagnostic_columns[0].metric(
-            "Mean absolute error",
-            f"£{mae:,.0f}",
-            "Average miss per week",
-            delta_color="off",
-            delta_arrow="off",
-            border=True,
-        )
-        diagnostic_columns[1].metric(
-            "Root mean square error",
-            f"£{rmse:,.0f}",
-            "Penalises larger misses",
-            delta_color="off",
-            delta_arrow="off",
-            border=True,
-        )
-        diagnostic_columns[2].metric(
-            "Prediction interval",
-            f"{confidence_pct}%",
-            "Statistical signal boundary",
-            delta_color="violet",
-            delta_arrow="off",
-            border=True,
-        )
-    with diagnostic_tabs[1]:
-        st.markdown(
-            f"**{largest['Top Product']}** generated the strongest detected "
-            f"exception in **{largest['Week']}**."
-        )
-        st.markdown(
-            f":red-badge[{largest['Deviation %']:+.1f}% vs forecast] "
-            f":violet-badge[£{abs(largest['Actual Sales'] - largest['Forecast Sales']):,.0f} impact] "
-            f":orange-badge[{largest['Type']}]"
-        )
-    with diagnostic_tabs[2]:
-        st.markdown(
-            f"The model detected **{len(anomalies)} statistically significant "
-            f"events** across the complete window: {high_count} unexpected "
-            f"demand spikes and {low_count} demand drop. The largest movement "
-            f"occurred in **{largest['Week']}** at "
-            f"**{largest['Deviation %']:+.1f}%** versus expectation."
-        )
-        st.info(
-            "Prioritise inventory review around the identified product driver, "
-            "investigate low-demand causes, and maintain weekly exception monitoring.",
-            icon=":material/lightbulb:",
+    if not filtered_anomalies.empty:
+        st.caption(
+            f"{len(filtered_anomalies)} detected events in this window · "
+            f":green-badge[+{high_filtered} above] "
+            f":red-badge[-{low_filtered} below]"
         )
 
 
@@ -1567,17 +1516,44 @@ elif page == "Forecast studio":
 # ---------------------------------------------------------------------------
 
 else:
+    # Re-run the same Prophet interval logic used by Forecast Studio so this
+    # page always reflects the currently selected sensitivity.
+    confidence_pct = int(st.session_state["active_confidence_pct"])
+    confidence_level = confidence_pct / 100.0
+    intelligence_results, intelligence_anomalies = generate_dynamic_forecast(
+        results,
+        confidence_level,
+    )
+    dynamic_reports = dynamic_reports_from_anomalies(intelligence_anomalies)
+
     page_header(
         "Root-cause workspace",
         "Move from signal to explanation.",
         "Select a detected event to inspect financial impact, commercial drivers, and an AI-generated management response.",
-        f"{len(reports_df)} statistically significant events ready for investigation",
+        f"{len(dynamic_reports)} events at {confidence_pct}% sensitivity · transaction-level RCA",
     )
 
+    high_dynamic = int((intelligence_anomalies["AnomalyType"] == "High Sales").sum())
+    low_dynamic = int((intelligence_anomalies["AnomalyType"] == "Low Sales").sum())
+
+    st.caption(
+        f"Active sensitivity: **{confidence_pct}%** · "
+        f":green-badge[+{high_dynamic} above forecast] "
+        f":red-badge[-{low_dynamic} below forecast]"
+    )
+
+    if dynamic_reports.empty:
+        st.info(
+            "No anomalies were detected at the current sensitivity level.",
+            icon=":material/check_circle:",
+        )
+        st.stop()
+
     selector_labels = {
-        index: f"{row['Week']} · {row['Type']}"
-        for index, row in reports_df.iterrows()
+        index: f"{row['Week']:%d %b %Y} · {row['Type']} · {row['Deviation %']:+.1f}%"
+        for index, row in dynamic_reports.iterrows()
     }
+
     selected_index = st.segmented_control(
         "Select a detected event",
         options=list(selector_labels),
@@ -1587,7 +1563,8 @@ else:
         width="stretch",
         key="anomaly_selector",
     )
-    row = reports_df.loc[selected_index]
+
+    row = dynamic_reports.loc[selected_index]
     impact = abs(float(row["Actual Sales"]) - float(row["Forecast Sales"]))
 
     metric_columns = st.columns(4)
@@ -1629,180 +1606,96 @@ else:
 
     section_header(
         "Root-cause lens",
-        "The strongest commercial contributors behind the selected event.",
+        "Transaction-derived context for the selected anomaly.",
         ":material/hub:",
     )
-    root_cause_column, comparison_column = st.columns([1.15, 1])
+
+    root_cause_column, evidence_column = st.columns([1.15, 1], gap="medium")
     with root_cause_column:
-        with st.container(border=True, height=310):
+        with st.container(border=True, key="root_cause_card"):
             st.badge(
                 str(row["Type"]),
                 icon=":material/priority_high:",
                 color="orange" if row["Type"] == "Low Sales" else "violet",
             )
             st.subheader(str(row["Top Product"]))
-            attribute_columns = st.columns(2)
-            with attribute_columns[0].container(border=True, height=112):
+            st.caption("Leading product · transaction-derived RCA")
+
+            a, b = st.columns(2)
+            with a:
                 st.caption("Top customer")
-                st.subheader(str(row["Top Customer"]))
-            with attribute_columns[1].container(border=True, height=112):
+                st.markdown(f"**{row['Top Customer']}**")
+                st.caption(f"{row['Customer Contribution %']:.1f}% of weekly sales")
+            with b:
                 st.caption("Market")
-                st.subheader(str(row["Top Country"]))
-            st.caption(f"Primary driver · {row['Root Cause Driver']}")
-    with comparison_column:
-        with st.container(border=True, height=310):
-            st.markdown("**Financial contribution**")
-            comparison_data = pd.DataFrame(
-                {
-                    "Measure": [
-                        "Actual sales",
-                        "AI forecast",
-                        "Root-cause contribution",
-                    ],
-                    "Value": [
-                        float(row["Actual Sales"]),
-                        float(row["Forecast Sales"]),
-                        abs(float(row["Driver Increase"])),
-                    ],
-                }
+                st.markdown(f"**{row['Top Country']}**")
+                st.caption(f"{row['Country Contribution %']:.1f}% of weekly sales")
+
+            st.divider()
+            st.caption(
+                f"Primary driver · **{row['Root Cause Driver']}** · "
+                f"Product contribution {row['Product Contribution %']:.1f}%"
             )
+            if float(row.get("Driver Change %", 0)) != 0:
+                change = float(row["Driver Change %"])
+                tone = "anomaly-positive" if change > 0 else "anomaly-negative"
+                st.markdown(
+                    f'<span class="{tone}">Driver change {change:+.1f}% vs prior available week</span>',
+                    unsafe_allow_html=True,
+                )
+
+    with evidence_column:
+        with st.container(border=True, key="evidence_card"):
+            st.markdown("**Event evidence**")
+            evidence = pd.DataFrame({
+                "Measure": ["Actual sales", "AI forecast", "Variance"],
+                "Value": [
+                    float(row["Actual Sales"]),
+                    float(row["Forecast Sales"]),
+                    float(row["Actual Sales"]) - float(row["Forecast Sales"]),
+                ],
+            })
             st.bar_chart(
-                comparison_data,
+                evidence,
                 x="Measure",
                 y="Value",
                 x_label=None,
-                y_label="Value (£)",
+                y_label="£",
                 color=CYAN,
-                horizontal=True,
-                width="stretch",
                 height=220,
+                width="stretch",
+            )
+            st.caption(
+                f"Deviation: {row['Deviation %']:+.1f}% · "
+                f"{row['Week']:%d %b %Y}"
             )
 
     section_header(
         "Generative analysis",
-        "Turn this event into a concise management-ready action brief.",
+        "Management-ready interpretation and recommended actions.",
         ":material/auto_awesome:",
     )
-    with st.container(border=True, key="ai_panel"):
-        analysis_column, status_column = st.columns(
-            [3, 1],
-            vertical_alignment="center",
-        )
-        with analysis_column:
-            st.markdown("**Gemini-powered decision support**")
-            st.caption(
-                "The assistant combines forecast deviation with product, customer, "
-                "market, and driver context to generate risks and recommended actions."
-            )
-        with status_column:
-            st.badge(
-                "Automatic analysis",
-                icon=":material/bolt:",
-                color="blue",
-            )
 
     if "llm_cache" not in st.session_state:
         st.session_state.llm_cache = {}
 
-    cache_key = f"{row['Week']}_{row['Top Product']}"
-    brief_slot = st.container()
-    with brief_slot:
-        if cache_key not in st.session_state.llm_cache:
-            with st.status(
-                "Synthesising the commercial signal...",
-                expanded=True,
-            ) as status:
-                try:
-                    st.session_state.llm_cache[cache_key] = generate_insights(row)
-                    status.update(
-                        label="Decision brief ready",
-                        state="complete",
-                        expanded=False,
-                    )
-                except Exception:
-                    status.update(
-                        label="AI analysis service unavailable",
-                        state="error",
-                        expanded=False,
-                    )
-                    st.error(
-                        "The forecast and root-cause results remain available, "
-                        "but the Gemini service did not return an analysis.",
-                        icon=":material/cloud_off:",
-                    )
-
-        if cache_key in st.session_state.llm_cache:
-            with st.container(border=True):
-                st.markdown(st.session_state.llm_cache[cache_key])
-
-    section_header(
-        "Signal register",
-        "Explore, sort, and export the complete anomaly audit trail.",
-        ":material/table_chart:",
+    cache_key = (
+        f"{confidence_pct}_{row['Week']}_{row['Type']}_"
+        f"{row['Top Product']}_{row['Top Customer']}_{row['Top Country']}"
     )
-    with st.container(border=True, key="register_panel"):
-        table_header, export_column = st.columns(
-            [4, 1],
-            vertical_alignment="center",
-        )
-        with table_header:
-            st.caption(
-                "Columns are formatted for rapid executive review. "
-                "Use the table toolbar to search or download."
-            )
-        with export_column:
-            csv = reports_df.to_csv(index=False).encode()
-            st.download_button(
-                "Export CSV",
-                csv,
-                "Anomaly_Report.csv",
-                "text/csv",
-                icon=":material/download:",
-                width="stretch",
-            )
 
-        register_columns = [
-            "Week",
-            "Type",
-            "Actual Sales",
-            "Forecast Sales",
-            "Deviation %",
-            "Top Product",
-            "Top Country",
-            "Driver Increase",
-        ]
-        st.dataframe(
-            reports_df[register_columns],
-            hide_index=True,
-            width="stretch",
-            height="content",
-            column_config={
-                "Week": st.column_config.DateColumn(
-                    "Week",
-                    format="DD MMM YYYY",
-                    pinned=True,
-                ),
-                "Type": st.column_config.TextColumn("Signal"),
-                "Actual Sales": st.column_config.NumberColumn(
-                    "Actual sales (£)",
-                    format="localized",
-                ),
-                "Forecast Sales": st.column_config.NumberColumn(
-                    "AI forecast (£)",
-                    format="localized",
-                ),
-                "Deviation %": st.column_config.NumberColumn(
-                    "Deviation",
-                    format="%+.1f%%",
-                ),
-                "Top Product": st.column_config.TextColumn(
-                    "Leading product",
-                    width="large",
-                ),
-                "Top Country": st.column_config.TextColumn("Market"),
-                "Driver Increase": st.column_config.NumberColumn(
-                    "Driver contribution (£)",
-                    format="localized",
-                ),
-            },
-        )
+    if cache_key not in st.session_state.llm_cache:
+        with st.status("Synthesising the commercial signal...", expanded=False) as status:
+            try:
+                st.session_state.llm_cache[cache_key] = generate_insights(row)
+                status.update(label="Decision brief ready", state="complete", expanded=False)
+            except Exception as exc:
+                status.update(label="AI analysis service unavailable", state="error", expanded=False)
+                st.error(
+                    f"Forecast and RCA remain available, but Gemini did not return an analysis: {exc}",
+                    icon=":material/cloud_off:",
+                )
+
+    if cache_key in st.session_state.llm_cache:
+        with st.container(border=True, key="ai_panel"):
+            st.markdown(st.session_state.llm_cache[cache_key])
