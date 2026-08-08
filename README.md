@@ -1,89 +1,182 @@
-# 📈 Forecast-Based Anomaly Detection for Retail Sales
+# 📈 iADAS — Intelligent Anomaly Detection & Alerting System
+
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Prophet](https://img.shields.io/badge/Forecasting-Prophet-orange)
+![Gemini](https://img.shields.io/badge/GenAI-Gemini-purple)
+![Streamlit](https://img.shields.io/badge/App-Streamlit-red)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-Completed-success)
+![Status](https://img.shields.io/badge/Status-v2.0%20Released-success)
 
-### AI-Powered Weekly Sales Forecasting using Prophet
-An end-to-end machine learning solution that forecasts weekly retail sales, detects anomalies using prediction intervals, performs root cause analysis, and generates business-ready insights.
+## AI-Powered Retail Forecasting, Anomaly Detection & Decision Support
+
+**iADAS** is an end-to-end AI-powered retail analytics and decision-support system.
+
+It combines:
+
+- **Prophet-based weekly sales forecasting**
+- **Forecast-interval anomaly detection**
+- **Transaction-level root cause analysis**
+- **Generative AI executive interpretation using Gemini**
+- **Interactive Streamlit dashboards**
+- **Dynamic anomaly sensitivity**
+- **Executive-ready business recommendations**
+
+The objective is to move from:
+
+> **Signal → Explanation → Action**
+
+rather than simply reporting that an anomaly occurred.
 
 ![Forecast](images/forecast_final.png)
 
 ---
 
-## Weekly Sales Trend
+# 🚀 Version 2.0
 
-![Weekly Sales](images/weekly_sales.png)
+Version 2.0 turns the original forecasting prototype into an interactive **AI decision-support application**.
 
+### What's new in v2.0
 
-An end-to-end AI solution for forecasting weekly retail sales and detecting meaningful business anomalies using Facebook Prophet.
+- ✅ Interactive **iADAS Streamlit application**
+- ✅ Executive Pulse dashboard
+- ✅ Forecast Studio with adjustable anomaly sensitivity
+- ✅ Anomaly Intelligence workspace
+- ✅ Dynamic anomaly detection based on prediction intervals
+- ✅ Transaction-derived root cause analysis
+- ✅ Gemini-powered management insights
+- ✅ Automated executive summaries and recommendations
+- ✅ Dynamic monitoring date
+- ✅ High/Low anomaly visual coding
+- ✅ Forecast and anomaly visualization
+- ✅ Dark Mode and Light Mode
+- ✅ Responsive management-oriented UI
+- ✅ Cached Gemini responses to reduce repeated API calls
+- ✅ Deployed as a live Streamlit application
 
-This project demonstrates how predictive AI can replace static threshold-based monitoring with forecast-driven anomaly detection, reducing false positives while providing explainable business insights.
+### Live Application
+
+**iADAS:**  
+https://forecast-based-anomaly-detection.streamlit.app/
 
 ---
 
-## Business Problem
+# 🎯 Business Problem
 
-Traditional anomaly detection systems use fixed thresholds to detect unusual sales activity.
+Retail managers monitor thousands of transactions but often struggle to identify abnormal sales patterns in time.
 
-This approach generates excessive false positives because it ignores:
+Traditional anomaly detection systems commonly rely on fixed thresholds. These approaches can generate excessive false positives because they do not account for:
 
 - Seasonality
 - Long-term trends
 - Business growth
 - Holiday effects
+- Expected demand variability
 
-This project addresses the problem by forecasting expected sales and detecting anomalies only when actual sales significantly deviate from the forecast.
+This project addresses the problem by forecasting expected sales and identifying events where actual sales move outside the expected prediction interval.
+
+The system then goes one step further by explaining **why the anomaly may have occurred** and translating the evidence into **management actions**.
 
 ---
 
-## Solution Architecture
+# 💡 Solution
 
-```
+iADAS follows an end-to-end analytical pipeline:
+
+```text
 Raw Retail Transactions
-            │
-            ▼
-      Data Cleaning
-            │
-            ▼
-   Feature Engineering
-            │
-            ▼
+          │
+          ▼
+     Data Cleaning
+          │
+          ▼
+  Feature Engineering
+          │
+          ▼
  Weekly Sales Aggregation
-            │
-            ▼
- Prophet Forecast Model
-            │
-            ▼
-Prediction Interval Analysis
-            │
-            ▼
- Sales Anomaly Detection
-            │
-            ▼
- Root Cause Analysis
-            │
-            ▼
- Business Recommendations
+          │
+          ▼
+   Prophet Forecast
+          │
+          ▼
+ Prediction Intervals
+          │
+          ▼
+ Anomaly Detection
+          │
+          ▼
+ Transaction-level RCA
+          │
+          ▼
+ Gemini Business Analysis
+          │
+          ▼
+ Executive Recommendations
 ```
 
 ---
 
-## Dataset
+# 🧠 Application Architecture
+
+The application is organized into three primary workspaces.
+
+### 1. Executive Pulse
+
+A management-oriented view of:
+
+- Current forecast signal
+- Actual vs expected sales
+- High and low sales anomalies
+- Overall anomaly activity
+- Key business indicators
+
+The dashboard reflects the **active anomaly sensitivity** selected in Forecast Studio.
+
+### 2. Forecast Studio
+
+Used to explore the forecasting model and anomaly sensitivity.
+
+Users can adjust the prediction interval and refresh the anomaly register dynamically.
+
+This allows management users to understand how anomaly detection changes as sensitivity changes.
+
+### 3. Anomaly Intelligence
+
+The root-cause workspace moves from:
+
+> **Signal → Explanation**
+
+For each detected anomaly, the application presents:
+
+- Actual sales
+- Forecast sales
+- Absolute variance
+- Percentage deviation
+- Leading product
+- Top customer
+- Top market/country
+- Primary transaction-derived driver
+- Contribution metrics
+- Week-over-week evidence
+- Gemini-generated management interpretation
+- Recommended actions
+
+---
+
+# 📊 Dataset
 
 **Online Retail II Dataset**
 
-- Source: Kaggle (UCI Machine Learning Repository)
+- Source: Kaggle / UCI Machine Learning Repository
 - Period: December 2009 – December 2011
 - Original Transactions: **1,067,371**
 
-Dataset Link:
+Dataset:
 
-Dataset: [Online Retail II (Kaggle)](https://www.kaggle.com/datasets/mashlyn/online-retail-ii-uci)
+https://www.kaggle.com/datasets/mashlyn/online-retail-ii-uci
 
 ---
 
-## Data Cleaning
+# 🧹 Data Cleaning
 
 The following preprocessing steps were performed:
 
@@ -92,8 +185,8 @@ The following preprocessing steps were performed:
 - Removed missing product descriptions
 - Removed invalid quantities
 - Removed zero-priced items
-- Converted InvoiceDate to datetime
-- Created TotalSales feature
+- Converted `InvoiceDate` to datetime
+- Created `TotalSales`
 
 Final clean dataset:
 
@@ -101,67 +194,178 @@ Final clean dataset:
 
 ---
 
-## Forecasting Model
+# 📈 Forecasting Model
 
-Model Used:
+### Model
 
 **Facebook Prophet**
 
-The model learns:
+The model captures:
 
 - Long-term sales trend
 - Yearly seasonality
 - Expected weekly sales
 
-Forecasts are generated for weekly aggregated sales.
+Sales are aggregated into weekly observations before forecasting.
 
 ---
 
-## Model Performance
+# 📐 Forecast-Based Anomaly Detection
+
+Instead of using a static threshold such as:
+
+```text
+Actual Sales > Fixed Threshold
+```
+
+iADAS evaluates the actual result against the model's expected prediction interval.
+
+Conceptually:
+
+```text
+             Upper Prediction Bound
+                    ▲
+                    │
+       HIGH         │   ← High Sales Anomaly
+                    │
+──────────── Forecast ─────────────
+                    │
+       LOW          │   ← Low Sales Anomaly
+                    │
+                    ▼
+             Lower Prediction Bound
+```
+
+The application allows users to adjust the prediction interval sensitivity and dynamically regenerate the anomaly register.
+
+---
+
+# 🔎 Root Cause Analysis
+
+Detected anomalies are enriched using transaction-level evidence.
+
+The RCA layer evaluates concentration and contribution across:
+
+- Product
+- Customer
+- Country / Market
+- Transaction-derived drivers
+- Week-over-week changes
+
+This helps move from:
+
+> **"Sales were unusual."**
+
+to:
+
+> **"Sales were unusual, and these transaction-level factors appear to explain the deviation."**
+
+Where evidence is insufficient, the system treats the explanation as a hypothesis rather than presenting it as a fact.
+
+---
+
+# 🤖 Generative AI — Gemini
+
+iADAS uses **Google Gemini** to transform the anomaly and RCA evidence into a concise management brief.
+
+The AI output is structured into:
+
+### Executive Summary
+
+What happened and why it matters.
+
+### Business Interpretation
+
+Evidence-based interpretation of the event.
+
+### Business Risks
+
+Potential:
+
+- Inventory risk
+- Customer impact
+- Revenue impact
+- Operational risk
+
+### Recommended Actions
+
+3–5 prioritized management actions.
+
+### Management Takeaway
+
+One concise senior-leadership takeaway.
+
+The prompt explicitly instructs the model to use only supplied evidence and distinguish observed facts from hypotheses.
+
+Gemini responses are cached to reduce repeated API calls for the same anomaly.
+
+---
+
+# 📊 Model Performance
 
 | Metric | Value |
-|---------|------:|
+|---|---:|
 | Original Transactions | 1,067,371 |
 | Clean Transactions | 1,007,913 |
 | Weekly Observations | 106 |
 | Forecast Model | Prophet |
 | MAE | £27,549 |
 | RMSE | £36,860 |
-| High Sales Anomalies | 4 |
-| Low Sales Anomalies | 1 |
+
+The number of detected anomalies is **dynamic in v2.0** and depends on the active prediction-interval sensitivity.
 
 ---
 
-## Key Results
+# 🎯 Key Results
 
 - 📊 Analysed **1,067,371** retail transactions
-- 🧹 Cleaned dataset to **1,007,913** high-quality records
+- 🧹 Cleaned dataset to **1,007,913** records
 - 📅 Aggregated sales into **106 weekly observations**
 - 🤖 Built a **Prophet forecasting model**
 - 🎯 Achieved **MAE = £27,549**
-- 🚨 Detected **5 meaningful anomalies**
-- 📄 Generated automated business reports with root-cause analysis
+- 📉 Detects anomalies using forecast prediction intervals
+- 🔎 Performs transaction-derived root cause analysis
+- 🧠 Generates AI-powered management interpretation
+- 💼 Converts analytical signals into recommended business actions
+- 🖥️ Delivered as an interactive Streamlit application
 
 ---
 
-## Project Outputs
+# 🖥️ Application Screens
 
-The project generates:
+## Executive Pulse
+
+Management overview of the current forecast and anomaly landscape.
+
+## Forecast Studio
+
+Interactive forecast exploration with adjustable anomaly sensitivity.
+
+## Anomaly Intelligence
+
+Detailed anomaly investigation with financial impact, RCA evidence and Gemini-generated management response.
+
+---
+
+# 🗂️ Project Outputs
+
+The project includes:
 
 - Weekly Sales Forecast
 - Forecast vs Actual Comparison
 - Forecast-Based Anomaly Detection
 - Root Cause Analysis
-- Executive Business Report
+- Executive Business Reports
 - Executive Summary Dashboard
+- Interactive Streamlit Application
+- Gemini-powered Management Analysis
 
 ---
 
-## Repository Structure
+# 📁 Repository Structure
 
-```
+```text
 forecast-based-anomaly-detection/
-
 │
 ├── notebook/
 │   └── forecast-based-anomaly-detection.ipynb
@@ -180,6 +384,9 @@ forecast-based-anomaly-detection/
 ├── presentation/
 │   └── ISB_AI_Retail_Sales_Forecasting.pdf
 │
+├── app.py
+├── llm.py
+├── weekly_rca.pkl
 ├── requirements.txt
 ├── README.md
 └── LICENSE
@@ -187,42 +394,117 @@ forecast-based-anomaly-detection/
 
 ---
 
-## Technologies Used
+# 🛠️ Technologies Used
 
-- Python
+- Python 3.11
 - Pandas
 - NumPy
 - Matplotlib
+- Plotly
 - Prophet
 - Scikit-learn
+- Streamlit
+- Google Gemini / `google-genai`
 - Google Colab
-
----
-## Business Impact
-
-Compared with static threshold monitoring, this solution:
-
-- Reduces false-positive alerts
-- Detects unusual sales behaviour relative to expected trends
-- Provides explainable root-cause analysis for business users
-- Supports inventory planning and demand forecasting
-- Enables proactive operational decision-making
-  
----
-
-## Roadmap
-
-- ✅ Data Cleaning
-- ✅ Weekly Sales Forecasting
-- ✅ Forecast-Based Anomaly Detection
-- ✅ Root Cause Analysis
-- ⏳ Interactive Streamlit Dashboard
-- ⏳ LLM-powered Business Assistant
-- ⏳ Real-Time Alerting
+- OpenPyXL
 
 ---
 
-## Author
+# 🔐 Gemini Configuration
+
+The Streamlit application expects the Gemini API key to be configured through Streamlit Secrets.
+
+Example:
+
+```toml
+GEMINI_API_KEY = "your-api-key"
+```
+
+The key should **never be committed to GitHub**.
+
+---
+
+# ▶️ Run Locally
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Configure the Gemini API key using Streamlit secrets.
+
+Then run:
+
+```bash
+streamlit run app.py
+```
+
+---
+
+# 📌 Business Impact
+
+Compared with static threshold monitoring, iADAS aims to:
+
+- Reduce false-positive alerts
+- Detect unusual sales behaviour relative to expected demand
+- Identify likely commercial drivers
+- Provide explainable root-cause analysis
+- Support inventory planning
+- Improve demand visibility
+- Enable proactive operational decision-making
+- Reduce the gap between analytical detection and management action
+
+---
+
+# 🗺️ Project Evolution
+
+### Version 1.0
+
+**Forecast → Detect**
+
+- Data cleaning
+- Weekly aggregation
+- Prophet forecasting
+- Prediction-interval anomaly detection
+- Initial RCA
+- Analytical reports
+
+### Version 2.0
+
+**Forecast → Detect → Explain → Act**
+
+- Interactive Streamlit application
+- Dynamic anomaly sensitivity
+- Executive Pulse
+- Forecast Studio
+- Anomaly Intelligence
+- Transaction-derived RCA
+- Gemini-powered management analysis
+- Executive recommendations
+- Responsive UI
+- Dark / Light mode
+- Cached AI responses
+- Live deployment
+
+---
+
+# 🚀 Future Roadmap
+
+Potential future enhancements:
+
+- ⏳ Real-time retail data ingestion
+- ⏳ Automated email / Slack alerts
+- ⏳ Persistent anomaly history
+- ⏳ Multi-product forecasting
+- ⏳ Multi-market forecasting
+- ⏳ Automated alert prioritisation
+- ⏳ Feedback loop for RCA validation
+- ⏳ Production monitoring and model drift detection
+
+---
+
+# 👤 Author
 
 **Vijay Mohan Boddu**
 
@@ -230,6 +512,6 @@ Engineering Manager | AI Enthusiast | ISB – AI in Business
 
 ---
 
-## License
+# 📄 License
 
 This project is released under the MIT License.
