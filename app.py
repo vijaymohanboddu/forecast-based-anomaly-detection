@@ -8,6 +8,14 @@ from prophet import Prophet
 
 from llm import generate_insights
 
+# ---------------------------------------------------------------------------
+# THEME
+# ---------------------------------------------------------------------------
+
+if "light_mode" not in st.session_state:
+    st.session_state.light_mode = False
+
+LIGHT_MODE = st.session_state.light_mode
 
 # ---------------------------------------------------------------------------
 # APP CONFIGURATION
